@@ -2,8 +2,10 @@ package com.wifix.app.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wifix.app.core.network.NetworkMath
@@ -38,6 +41,7 @@ import com.wifix.app.ui.components.GlassCard
 import com.wifix.app.ui.components.LiveSparklineGraph
 import com.wifix.app.ui.components.StatusPill
 import com.wifix.app.ui.theme.WiFiXColors
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
@@ -52,7 +56,7 @@ fun DashboardScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Header Row
@@ -61,16 +65,19 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "WiFiX",
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Text(
                     text = "Real-Time Network Telemetry",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+            Spacer(modifier = Modifier.width(8.dp))
             val statusColor = when {
                 state.snapshot.isInternetValidated -> WiFiXColors.StatusGood
                 state.snapshot.activeTransport.name != "NONE" -> WiFiXColors.StatusWarn
@@ -86,7 +93,6 @@ fun DashboardScreen(
             )
         }
 
-        // Permission Readiness Card (shown only when optional diagnostic permissions are missing)
         if (!state.permissions.allCoreGranted) {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -104,15 +110,13 @@ fun DashboardScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Android requires Location permission to read Wi-Fi SSID/band details and Phone State permission to detect 4G/5G radio types.",
+                    text = "Android requires Location permission for Wi-Fi SSID/band details and Phone State for 4G/5G detection.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = onRequestPermissions,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = WiFiXColors.AccentBlue
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = WiFiXColors.AccentBlue)
                 ) {
                     Text(text = "Grant Permissions")
                 }
@@ -132,7 +136,8 @@ fun DashboardScreen(
                 )
                 Text(
                     text = "Session: ${NetworkMath.formatByteSize(state.traffic.totalSessionRxBytes)} down",
-                    style = MaterialTheme.typography.labelMedium
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -169,7 +174,10 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.NetworkCheck,
                         contentDescription = null,
@@ -178,8 +186,10 @@ fun DashboardScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Latency & Stability (${state.latency.targetHost})",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "Latency (${state.latency.targetHost})",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 if (state.latency.isMeasuring) {
@@ -208,19 +218,23 @@ fun DashboardScreen(
             ) {
                 MetricTile(
                     label = "TCP PING",
-                    value = state.latency.averageRttMs?.let { String.format("%.1f ms", it) } ?: "--"
+                    value = state.latency.averageRttMs?.let { String.format(Locale.US, "%.1f ms", it) } ?: "--",
+                    modifier = Modifier.weight(1f)
                 )
                 MetricTile(
                     label = "JITTER",
-                    value = state.latency.jitterMs?.let { String.format("%.1f ms", it) } ?: "--"
+                    value = state.latency.jitterMs?.let { String.format(Locale.US, "%.1f ms", it) } ?: "--",
+                    modifier = Modifier.weight(1f)
                 )
                 MetricTile(
-                    label = "PROBE LOSS",
-                    value = String.format("%.0f%%", state.latency.lossPercent)
+                    label = "LOSS",
+                    value = String.format(Locale.US, "%.0f%%", state.latency.lossPercent),
+                    modifier = Modifier.weight(1f)
                 )
                 MetricTile(
                     label = "STABILITY",
-                    value = "${state.stabilityScore}/100"
+                    value = "${state.stabilityScore}/100",
+                    modifier = Modifier.weight(1f)
                 )
             }
             if (state.latency.errorMessage != null) {
@@ -233,12 +247,18 @@ fun DashboardScreen(
             }
         }
 
-        // Dual-Interface Breakdown (Wi-Fi + Cellular)
+        // Equal-height Dual-Interface Breakdown
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Max),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            GlassCard(modifier = Modifier.weight(1f)) {
+            GlassCard(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Rounded.Wifi,
@@ -247,24 +267,29 @@ fun DashboardScreen(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Wi-Fi", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Wi-Fi",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 if (state.snapshot.wifi.isConnected) {
-                    DetailRow("SSID", state.snapshot.wifi.ssid ?: "Hidden / No Loc")
+                    DetailRow("SSID", state.snapshot.wifi.ssid ?: "No Location")
                     DetailRow("Band", state.snapshot.wifi.band.label)
                     DetailRow("Signal", state.snapshot.wifi.rssiDbm?.let { "$it dBm" } ?: "--")
                     DetailRow("Link", state.snapshot.wifi.linkSpeedMbps?.let { "$it Mbps" } ?: "--")
-                    DetailRow("Standard", state.snapshot.wifi.wifiStandard)
+                    DetailRow("Std", state.snapshot.wifi.wifiStandard.substringBefore(" "))
                 } else {
-                    Text(
-                        text = "Disconnected",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text(text = "Disconnected", style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
-            GlassCard(modifier = Modifier.weight(1f)) {
+            GlassCard(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Rounded.CellTower,
@@ -273,28 +298,26 @@ fun DashboardScreen(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Mobile Data", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Mobile",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 if (state.snapshot.cellular.isConnected) {
                     DetailRow("Radio", state.snapshot.cellular.generation)
                     DetailRow(
                         "Signal",
-                        state.snapshot.cellular.signalStrengthDbm?.let { "$it dBm" } ?: "OS Managed"
+                        state.snapshot.cellular.signalStrengthDbm?.let { "$it dBm" } ?: "OS Auto"
                     )
-                    DetailRow(
-                        "Metered",
-                        if (state.snapshot.cellular.isMetered) "Yes" else "No"
-                    )
+                    DetailRow("Metered", if (state.snapshot.cellular.isMetered) "Yes" else "No")
                     DetailRow(
                         "Cap Est",
                         "${state.snapshot.cellular.downstreamEstimateKbps / 1000} Mbps"
                     )
                 } else {
-                    Text(
-                        text = "Inactive / Standby",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text(text = "Standby", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -306,7 +329,10 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Download,
                         contentDescription = null,
@@ -317,22 +343,27 @@ fun DashboardScreen(
                     Column {
                         Text(
                             text = "Active Downloads: ${state.activeDownloadsCount}",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1
                         )
                         Text(
                             text = "Profile: ${state.optimisationProfile}",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
+                Spacer(modifier = Modifier.width(8.dp))
                 StatusPill(
-                    label = if (state.snapshot.dualPathAvailable) "Dual-Path Ready" else "Single-Path",
+                    label = if (state.snapshot.dualPathAvailable) "Dual-Path" else "Single-Path",
                     dotColor = if (state.snapshot.dualPathAvailable) WiFiXColors.StatusGood else WiFiXColors.AccentBlue
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Bottom clearance for the floating glass navigation pill
+        Spacer(modifier = Modifier.height(104.dp))
     }
 }
 
@@ -350,33 +381,46 @@ private fun ThroughputColumn(
             color = accent,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.8.sp
+            letterSpacing = 0.8.sp,
+            maxLines = 1
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = String.format("%.2f Mbps", mbps),
+            text = String.format(Locale.US, "%.2f Mbps", mbps),
             color = WiFiXColors.TextPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
         )
         Text(
-            text = String.format("%.2f MB/s", mBps),
+            text = String.format(Locale.US, "%.2f MB/s", mBps),
             color = WiFiXColors.TextMuted,
-            fontSize = 12.sp
+            fontSize = 12.sp,
+            maxLines = 1
         )
     }
 }
 
 @Composable
-private fun MetricTile(label: String, value: String) {
-    Column {
-        Text(text = label, style = MaterialTheme.typography.labelMedium)
+private fun MetricTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1
+        )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = value,
             color = WiFiXColors.TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -387,14 +431,23 @@ private fun DetailRow(label: String, value: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, color = WiFiXColors.TextMuted, fontSize = 12.sp)
+        Text(
+            text = label,
+            color = WiFiXColors.TextMuted,
+            fontSize = 12.sp,
+            maxLines = 1
+        )
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = value,
             color = WiFiXColors.TextPrimary,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
