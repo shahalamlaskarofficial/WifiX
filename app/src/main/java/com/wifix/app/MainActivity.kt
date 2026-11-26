@@ -10,11 +10,13 @@ import androidx.activity.viewModels
 import com.wifix.app.core.permissions.PermissionHelper
 import com.wifix.app.ui.dashboard.DashboardViewModel
 import com.wifix.app.ui.navigation.WiFiXApp
+import com.wifix.app.ui.speedtest.SpeedTestViewModel
 import com.wifix.app.ui.theme.WiFiXTheme
 
 class MainActivity : ComponentActivity() {
 
     private val dashboardViewModel: DashboardViewModel by viewModels()
+    private val speedTestViewModel: SpeedTestViewModel by viewModels()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -33,6 +35,7 @@ class MainActivity : ComponentActivity() {
             WiFiXTheme {
                 WiFiXApp(
                     dashboardViewModel = dashboardViewModel,
+                    speedTestViewModel = speedTestViewModel,
                     onRequestPermissions = {
                         permissionLauncher.launch(PermissionHelper.requiredRuntimePermissions())
                     }
