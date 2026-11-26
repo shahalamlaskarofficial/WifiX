@@ -25,6 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Genuine multi-stream HTTP/HTTPS speed test & bufferbloat engine.
@@ -215,14 +216,13 @@ class SpeedTestEngine {
         val warmupDone = AtomicBoolean(false)
         val running = AtomicBoolean(true)
         val loadedRtts = CopyOnWriteArrayList<Double>()
-        val intervalSamples = mutableListOf<Double>()
-        var firstError: String? = null
+        val intervalSamples = CopyOnWriteArrayList<Double>()
+        val firstError = AtomicReference<String?>(null)
 
         val startNs = System.nanoTime()
         val warmupMs = 1_000L
-        var measurementStartNs = startNs
+        val measurementStartNs = AtomicLong(startNs)
 
-        // Background loaded latency probe for real bufferbloat measurement
         val bloatJob = launch(Dispatchers.IO) {
             delay(800L)
             while (running.get() && isActive) {
@@ -239,7 +239,6 @@ class SpeedTestEngine {
             }
         }
 
-        // Sampling ticker for live UI curve
         val tickerJob = launch(Dispatchers.IO) {
             var prevBytes = 0L
             var prevNs = System.nanoTime()
@@ -249,7 +248,7 @@ class SpeedTestEngine {
                 val elapsedMs = (nowNs - startNs) / 1_000_000L
                 if (!warmupDone.get() && elapsedMs >= warmupMs) {
                     warmupDone.set(true)
-                    measurementStartNs = nowNs
+                    measurementStartNs.set(nowNs)
                 }
 
                 val curBytes = totalBytes.get()
@@ -275,7 +274,6 @@ class SpeedTestEngine {
             }
         }
 
-        // Parallel HTTP download workers
         val workers = (1..streamCount).map { streamIdx ->
             async(Dispatchers.IO) {
                 val buffer = ByteArray(32 * 1024)
@@ -288,13 +286,19 @@ class SpeedTestEngine {
 
                     val call = client.newCall(request)
                     activeCalls.add(call)
+                    var stopWorker = false
                     try {
                         call.execute().use { response ->
                             if (!response.isSuccessful) {
-                                if (firstError == null) firstError = "HTTP ${response.code} from ${server.name}"
-                                break
+                                firstError.compareAndSet(null, "HTTP ${response.code} from ${server.name}")
+                                stopWorker = true
+                                return@use
                             }
-                            val stream = response.body?.byteStream() ?: break
+                            val stream = response.body?.byteStream()
+                            if (stream == null) {
+                                stopWorker = true
+                                return@use
+                            }
                             while (running.get() && isActive) {
                                 val read = stream.read(buffer)
                                 if (read == -1) break
@@ -305,13 +309,14 @@ class SpeedTestEngine {
                             }
                         }
                     } catch (e: IOException) {
-                        if (running.get() && firstError == null) {
-                            firstError = e.message ?: "Download stream interrupted"
+                        if (running.get()) {
+                            firstError.compareAndSet(null, e.message ?: "Download stream interrupted")
                         }
                         if (!running.get()) break
                     } finally {
                         activeCalls.remove(call)
                     }
+                    if (stopWorker) break
                 }
             }
         }
@@ -323,7 +328,7 @@ class SpeedTestEngine {
 
         val endNs = System.nanoTime()
         val measuredSec = if (warmupDone.get()) {
-            ((endNs - measurementStartNs) / 1_000_000_000.0).coerceAtLeast(0.5)
+            ((endNs - measurementStartNs.get()) / 1_000_000_000.0).coerceAtLeast(0.5)
         } else {
             ((endNs - startNs) / 1_000_000_000.0).coerceAtLeast(0.5)
         }
@@ -338,7 +343,7 @@ class SpeedTestEngine {
             averageMbps = avgMbps,
             intervalSamplesMbps = intervalSamples.toList(),
             loadedPingMs = loadedRtts.takeIf { it.isNotEmpty() }?.average(),
-            error = firstError
+            error = firstError.get()
         )
     }
 
@@ -357,12 +362,12 @@ class SpeedTestEngine {
         val warmupDone = AtomicBoolean(false)
         val running = AtomicBoolean(true)
         val loadedRtts = CopyOnWriteArrayList<Double>()
-        val intervalSamples = mutableListOf<Double>()
-        var firstError: String? = null
+        val intervalSamples = CopyOnWriteArrayList<Double>()
+        val firstError = AtomicReference<String?>(null)
 
         val startNs = System.nanoTime()
         val warmupMs = 800L
-        var measurementStartNs = startNs
+        val measurementStartNs = AtomicLong(startNs)
         val payloadChunk = ByteArray(32 * 1024) { idx -> (idx and 0xFF).toByte() }
         val chunkPostSize = 1_500_000L
 
@@ -391,7 +396,7 @@ class SpeedTestEngine {
                 val elapsedMs = (nowNs - startNs) / 1_000_000L
                 if (!warmupDone.get() && elapsedMs >= warmupMs) {
                     warmupDone.set(true)
-                    measurementStartNs = nowNs
+                    measurementStartNs.set(nowNs)
                 }
 
                 val curBytes = totalBytes.get()
@@ -448,13 +453,13 @@ class SpeedTestEngine {
                     activeCalls.add(call)
                     try {
                         call.execute().use { response ->
-                            if (!response.isSuccessful && firstError == null) {
-                                firstError = "Upload HTTP ${response.code}"
+                            if (!response.isSuccessful) {
+                                firstError.compareAndSet(null, "Upload HTTP ${response.code}")
                             }
                         }
                     } catch (e: IOException) {
-                        if (running.get() && firstError == null) {
-                            firstError = e.message ?: "Upload stream interrupted"
+                        if (running.get()) {
+                            firstError.compareAndSet(null, e.message ?: "Upload stream interrupted")
                         }
                         if (!running.get()) break
                     } finally {
@@ -471,7 +476,7 @@ class SpeedTestEngine {
 
         val endNs = System.nanoTime()
         val measuredSec = if (warmupDone.get()) {
-            ((endNs - measurementStartNs) / 1_000_000_000.0).coerceAtLeast(0.5)
+            ((endNs - measurementStartNs.get()) / 1_000_000_000.0).coerceAtLeast(0.5)
         } else {
             ((endNs - startNs) / 1_000_000_000.0).coerceAtLeast(0.5)
         }
@@ -486,7 +491,7 @@ class SpeedTestEngine {
             averageMbps = avgMbps,
             intervalSamplesMbps = intervalSamples.toList(),
             loadedPingMs = loadedRtts.takeIf { it.isNotEmpty() }?.average(),
-            error = firstError
+            error = firstError.get()
         )
     }
 
@@ -513,7 +518,11 @@ class SpeedTestEngine {
 
         if (network != null) {
             builder.socketFactory(network.socketFactory)
-            builder.dns(Dns { hostname -> network.getAllByName(hostname).toList() })
+            builder.dns(object : Dns {
+                override fun lookup(hostname: String): List<InetAddress> {
+                    return network.getAllByName(hostname).toList()
+                }
+            })
         }
         return builder.build()
     }
