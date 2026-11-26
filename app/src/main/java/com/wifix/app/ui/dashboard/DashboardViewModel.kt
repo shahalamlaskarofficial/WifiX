@@ -3,6 +3,7 @@ package com.wifix.app.ui.dashboard
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.wifix.app.core.download.DownloadRepository
 import com.wifix.app.core.network.DualNetworkMonitor
 import com.wifix.app.core.network.LatencyReport
 import com.wifix.app.core.network.NetworkMath
@@ -39,6 +40,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val networkMonitor = DualNetworkMonitor(application)
     private val trafficMeter = RealtimeTrafficMeter(intervalMs = 1_000L)
     private val latencyProbe = TcpLatencyProbe()
+    private val downloadRepository = DownloadRepository.getInstance(application)
 
     private val _uiState = MutableStateFlow(
         DashboardUiState(permissions = PermissionHelper.checkStatus(application))
@@ -70,6 +72,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         uploadHistoryMbps = nextUp
                     )
                 }
+            }
+        }
+
+        viewModelScope.launch {
+            downloadRepository.activeDownloadCount.collect { activeCount ->
+                _uiState.update { it.copy(activeDownloadsCount = activeCount) }
             }
         }
 
