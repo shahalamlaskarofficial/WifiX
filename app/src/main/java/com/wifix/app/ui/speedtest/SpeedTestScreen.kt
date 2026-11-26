@@ -152,11 +152,13 @@ fun SpeedTestScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                SpeedGaugeMeter(
+                               SpeedGaugeMeter(
                     speedMbps = state.progress.currentSpeedMbps,
                     phaseLabel = state.progress.phase.label,
-                    progressFraction = state.progress.progressFraction
+                    progressFraction = state.progress.progressFraction,
+                    isRunning = state.isRunning
                 )
+ 
                 Spacer(modifier = Modifier.height(10.dp))
                 if (state.isRunning) {
                     LinearProgressIndicator(
